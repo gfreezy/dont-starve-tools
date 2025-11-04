@@ -2,6 +2,7 @@
 /*
 SquishNET is licensed under the MIT license.
 Copyright © 2013 Matt Stevens
+Modified 2025 to use BCnEncoder.NET for cross-platform support
 
 All rights reserved.
 
@@ -27,60 +28,20 @@ SOFTWARE.
 
 using System;
 using System.Runtime.InteropServices;
+using BCnEncoder.Encoder;
+using BCnEncoder.Decoder;
+using BCnEncoder.Shared;
+using BCnEncoder.ImageSharp;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace SquishNET
 {
     /// <summary>
-    /// Wrapper for libsquish DXT compression/decompression library.
+    /// Cross-platform DXT compression/decompression library using BCnEncoder.NET.
     /// </summary>
     public static class Squish
     {
-        // Function delegates
-        private delegate int GetStorageRequirementsDelegate(int width, int height, int flags);
-        private delegate void CompressFunctionDelegate(IntPtr rgba, IntPtr block, int flags);
-        private delegate void CompressMaskedDelegate(IntPtr rgba, int mask, IntPtr block, int flags);
-        private delegate void DecompressDelegate(IntPtr rgba, IntPtr block, int flags);
-        private delegate void CompressImageDelegate(IntPtr rgba, int width, int height, IntPtr blocks, int flags);
-        private delegate void DecompressImageDelegate(IntPtr rgba, int width, int height, IntPtr blocks, int flags);
-
-        // Function delegates
-        private static GetStorageRequirementsDelegate GetStorageRequirementsFunction;
-        private static CompressFunctionDelegate CompressFunction;
-        private static CompressMaskedDelegate CompressMaskedFunction;
-        private static DecompressDelegate DecompressFunction;
-        private static CompressImageDelegate CompressImageFunction;
-        private static DecompressImageDelegate DecompressImageFunction;
-
-        static Squish()
-        {
-            if (IntPtr.Size == 8)
-                Getx64Delegates();
-            else
-                Getx86Delegates();
-        }
-
-        // Get function pointers from x86 assembly
-        private static void Getx86Delegates()
-        {
-            GetStorageRequirementsFunction = NativeSquish_x86.Squish.GetStorageRequirements;
-            CompressFunction = NativeSquish_x86.Squish.Compress;
-            CompressMaskedFunction = NativeSquish_x86.Squish.CompressMasked;
-            DecompressFunction = NativeSquish_x86.Squish.Decompress;
-            CompressImageFunction = NativeSquish_x86.Squish.CompressImage;
-            DecompressImageFunction = NativeSquish_x86.Squish.DecompressImage;
-        }
-
-        // Get function pointers from x64 assembly
-        private static void Getx64Delegates()
-        {
-            GetStorageRequirementsFunction = NativeSquish_x64.Squish.GetStorageRequirements;
-            CompressFunction = NativeSquish_x64.Squish.Compress;
-            CompressMaskedFunction = NativeSquish_x64.Squish.CompressMasked;
-            DecompressFunction = NativeSquish_x64.Squish.Decompress;
-            CompressImageFunction = NativeSquish_x64.Squish.CompressImage;
-            DecompressImageFunction = NativeSquish_x64.Squish.DecompressImage;
-        }
-
         /// <summary>
         /// Returns the final size in bytes of DXT data compressed with the parameters specified in <paramref name="flags"/>.
         /// </summary>
@@ -90,7 +51,14 @@ namespace SquishNET
         /// <returns>Size in bytes of the DXT data.</returns>
         public static int GetStorageRequirements(int width, int height, SquishFlags flags)
         {
-            return GetStorageRequirementsFunction(width, height, (int)flags);
+            // Calculate block size
+            int blockSize = GetBlockSize(flags);
+
+            // Round up to nearest multiple of 4
+            int blocksWide = (width + 3) / 4;
+            int blocksHigh = (height + 3) / 4;
+
+            return blocksWide * blocksHigh * blockSize;
         }
 
         /// <summary>
@@ -101,7 +69,11 @@ namespace SquishNET
         /// <param name="flags">Compression flags.</param>
         public static void Compress(IntPtr rgba, IntPtr block, SquishFlags flags)
         {
-            CompressFunction(rgba, block, (int)flags);
+            byte[] rgbaData = new byte[4 * 4 * 4]; // 4x4 pixels, 4 bytes per pixel
+            Marshal.Copy(rgba, rgbaData, 0, rgbaData.Length);
+
+            byte[] compressed = Compress(rgbaData, flags);
+            Marshal.Copy(compressed, 0, block, compressed.Length);
         }
 
         /// <summary>
@@ -112,34 +84,25 @@ namespace SquishNET
         /// <returns>Output DXT compressed block.</returns>
         public static byte[] Compress(byte[] rgba, SquishFlags flags)
         {
-            byte[] compressedData = new byte[GetStorageRequirements(4, 4, flags)];
-
-            GCHandle pinnedData = GCHandle.Alloc(compressedData, GCHandleType.Pinned);
-            GCHandle pinnedRgba = GCHandle.Alloc(rgba, GCHandleType.Pinned);
-
-            CompressFunction(pinnedRgba.AddrOfPinnedObject(), pinnedData.AddrOfPinnedObject(), (int)flags);
-
-            pinnedRgba.Free();
-            pinnedData.Free();
-
-            return compressedData;
+            return CompressImage(rgba, 4, 4, flags);
         }
 
         /// <summary>
-        /// Compress a 4x4 pixel block using the parameters specified in <paramref name="flags"/>. The <paramref name="mask"/> parameter is a used as 
+        /// Compress a 4x4 pixel block using the parameters specified in <paramref name="flags"/>. The <paramref name="mask"/> parameter is a used as
         /// a bit mask to specifify what pixels are valid for compression, corresponding the lowest bit to the first pixel.
         /// </summary>
         /// <param name="rgba">Source RGBA block.</param>
         /// <param name="mask">Pixel bit mask.</param>
         /// <param name="block">Output DXT compressed block.</param>
         /// <param name="flags">Compression flags.</param>
-        public static unsafe void CompressMasked(IntPtr rgba, int mask, IntPtr block, SquishFlags flags)
+        public static void CompressMasked(IntPtr rgba, int mask, IntPtr block, SquishFlags flags)
         {
-            CompressMaskedFunction(rgba, mask, block, (int)flags);
+            // Note: BCnEncoder doesn't support masking, so we'll just ignore the mask
+            Compress(rgba, block, flags);
         }
 
         /// <summary>
-        /// Compress a 4x4 pixel block using the parameters specified in <paramref name="flags"/>. The <paramref name="mask"/> parameter is a used as 
+        /// Compress a 4x4 pixel block using the parameters specified in <paramref name="flags"/>. The <paramref name="mask"/> parameter is a used as
         /// a bit mask to specifify what pixels are valid for compression, corresponding the lowest bit to the first pixel.
         /// </summary>
         /// <param name="rgba">Source RGBA block.</param>
@@ -148,17 +111,8 @@ namespace SquishNET
         /// <returns>Output DXT compressed block.</returns>
         public static byte[] CompressMasked(byte[] rgba, int mask, SquishFlags flags)
         {
-            byte[] compressedData = new byte[GetStorageRequirements(4, 4, flags)];
-
-            GCHandle pinnedData = GCHandle.Alloc(compressedData, GCHandleType.Pinned);
-            GCHandle pinnedRgba = GCHandle.Alloc(rgba, GCHandleType.Pinned);
-
-            CompressMaskedFunction(pinnedRgba.AddrOfPinnedObject(), mask, pinnedData.AddrOfPinnedObject(), (int)flags);
-
-            pinnedRgba.Free();
-            pinnedData.Free();
-
-            return compressedData;
+            // Note: BCnEncoder doesn't support masking, so we'll just ignore the mask
+            return Compress(rgba, flags);
         }
 
         /// <summary>
@@ -167,9 +121,14 @@ namespace SquishNET
         /// <param name="rgba">Output RGBA decompressed block.</param>
         /// <param name="block">Source DXT block.</param>
         /// <param name="flags">Decompression flags.</param>
-        public static unsafe void Decompress(IntPtr rgba, IntPtr block, SquishFlags flags)
+        public static void Decompress(IntPtr rgba, IntPtr block, SquishFlags flags)
         {
-            DecompressFunction(rgba, block, (int)flags);
+            int blockSize = GetBlockSize(flags);
+            byte[] blockData = new byte[blockSize];
+            Marshal.Copy(block, blockData, 0, blockSize);
+
+            byte[] decompressed = Decompress(blockData, flags);
+            Marshal.Copy(decompressed, 0, rgba, decompressed.Length);
         }
 
         /// <summary>
@@ -180,17 +139,7 @@ namespace SquishNET
         /// <returns>Output RGBA decompressed block.</returns>
         public static byte[] Decompress(byte[] block, SquishFlags flags)
         {
-            byte[] decompressedData = new byte[4 * 4 * 4];
-
-            GCHandle pinnedData = GCHandle.Alloc(decompressedData, GCHandleType.Pinned);
-            GCHandle pinnedBlock = GCHandle.Alloc(block, GCHandleType.Pinned);
-
-            DecompressFunction(pinnedData.AddrOfPinnedObject(), pinnedBlock.AddrOfPinnedObject(), (int)flags);
-
-            pinnedBlock.Free();
-            pinnedData.Free();
-
-            return decompressedData;
+            return DecompressImage(block, 4, 4, flags);
         }
 
         /// <summary>
@@ -201,9 +150,14 @@ namespace SquishNET
         /// <param name="height">Height of the image.</param>
         /// <param name="blocks">Output DXT compressed image.</param>
         /// <param name="flags">Compression flags.</param>
-        public static unsafe void CompressImage(IntPtr rgba, int width, int height, IntPtr blocks, SquishFlags flags)
+        public static void CompressImage(IntPtr rgba, int width, int height, IntPtr blocks, SquishFlags flags)
         {
-            CompressImageFunction(rgba, width, height, blocks, (int)flags);
+            int dataSize = width * height * 4;
+            byte[] rgbaData = new byte[dataSize];
+            Marshal.Copy(rgba, rgbaData, 0, dataSize);
+
+            byte[] compressed = CompressImage(rgbaData, width, height, flags);
+            Marshal.Copy(compressed, 0, blocks, compressed.Length);
         }
 
         /// <summary>
@@ -216,17 +170,19 @@ namespace SquishNET
         /// <returns>Output DXT compressed image.</returns>
         public static byte[] CompressImage(byte[] rgba, int width, int height, SquishFlags flags)
         {
-            byte[] compressedData = new byte[GetStorageRequirements(width, height, flags)];
+            // Create an ImageSharp image from the RGBA data
+            using var image = Image.LoadPixelData<Rgba32>(rgba, width, height);
 
-            GCHandle pinnedData = GCHandle.Alloc(compressedData, GCHandleType.Pinned);
-            GCHandle pinnedRgba = GCHandle.Alloc(rgba, GCHandleType.Pinned);
+            // Create encoder and configure
+            var encoder = new BcEncoder();
+            encoder.OutputOptions.Format = GetCompressionFormat(flags);
+            encoder.OutputOptions.GenerateMipMaps = false;
+            encoder.OutputOptions.Quality = CompressionQuality.Balanced;
 
-            CompressImageFunction(pinnedRgba.AddrOfPinnedObject(), width, height, pinnedData.AddrOfPinnedObject(), (int)flags);
+            // Encode to raw bytes (returns byte[][] with mipmap levels, we only need [0])
+            byte[][] encoded = encoder.EncodeToRawBytes(image);
 
-            pinnedRgba.Free();
-            pinnedData.Free();
-
-            return compressedData;
+            return encoded[0];
         }
 
         /// <summary>
@@ -237,9 +193,14 @@ namespace SquishNET
         /// <param name="height">Height of the image.</param>
         /// <param name="blocks">Source DXT compressed image.</param>
         /// <param name="flags">Decompression flags.</param>
-        public static unsafe void DecompressImage(IntPtr rgba, int width, int height, IntPtr blocks, SquishFlags flags)
+        public static void DecompressImage(IntPtr rgba, int width, int height, IntPtr blocks, SquishFlags flags)
         {
-            DecompressImageFunction(rgba, width, height, blocks, (int)flags);
+            int blockSize = GetStorageRequirements(width, height, flags);
+            byte[] blockData = new byte[blockSize];
+            Marshal.Copy(blocks, blockData, 0, blockSize);
+
+            byte[] decompressed = DecompressImage(blockData, width, height, flags);
+            Marshal.Copy(decompressed, 0, rgba, decompressed.Length);
         }
 
         /// <summary>
@@ -252,17 +213,52 @@ namespace SquishNET
         /// <returns>Output RGBA decompressed image.</returns>
         public static byte[] DecompressImage(byte[] blocks, int width, int height, SquishFlags flags)
         {
-            byte[] decompressedData = new byte[width * height * 4];
+            // Decode using BCnDecoder
+            var decoder = new BcDecoder();
+            using var image = decoder.DecodeRawToImageRgba32(blocks, width, height, GetCompressionFormat(flags));
 
-            GCHandle pinnedData = GCHandle.Alloc(decompressedData, GCHandleType.Pinned);
-            GCHandle pinnedBlocks = GCHandle.Alloc(blocks, GCHandleType.Pinned);
+            // Extract RGBA data from image
+            byte[] rgba = new byte[width * height * 4];
 
-            DecompressImageFunction(pinnedData.AddrOfPinnedObject(), width, height, pinnedBlocks.AddrOfPinnedObject(), (int)flags);
+            // Copy pixel data
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    var pixel = image[x, y];
+                    int offset = (y * width + x) * 4;
+                    rgba[offset + 0] = pixel.R;
+                    rgba[offset + 1] = pixel.G;
+                    rgba[offset + 2] = pixel.B;
+                    rgba[offset + 3] = pixel.A;
+                }
+            }
 
-            pinnedBlocks.Free();
-            pinnedData.Free();
-
-            return decompressedData;
+            return rgba;
         }
+
+        #region Helper Methods
+
+        private static CompressionFormat GetCompressionFormat(SquishFlags flags)
+        {
+            if ((flags & SquishFlags.Dxt1) != 0)
+                return CompressionFormat.Bc1;
+            if ((flags & SquishFlags.Dxt3) != 0)
+                return CompressionFormat.Bc2;
+            if ((flags & SquishFlags.Dxt5) != 0)
+                return CompressionFormat.Bc3;
+
+            return CompressionFormat.Bc3; // Default to BC3/DXT5
+        }
+
+        private static int GetBlockSize(SquishFlags flags)
+        {
+            if ((flags & SquishFlags.Dxt1) != 0)
+                return 8;  // DXT1/BC1 uses 8 bytes per 4x4 block
+            else
+                return 16; // DXT3/DXT5 (BC2/BC3) use 16 bytes per 4x4 block
+        }
+
+        #endregion
     }
 }
