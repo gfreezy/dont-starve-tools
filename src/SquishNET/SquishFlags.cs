@@ -25,8 +25,6 @@ SOFTWARE.
 */
 #endregion License
 
-using System;
-
 namespace SquishNET
 {
     /// <summary>

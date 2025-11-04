@@ -153,7 +153,8 @@
                                 </Button.Styles>
                             </Button>
                             <TextBlock Text="{Binding ZoomLevel, StringFormat='{}{0:P0}'}"
-                                      VerticalAlignment="Center" Margin="10,0,0,0" Foreground="White"/>
+                                      VerticalAlignment="Center" Margin="10,0,0,0" Foreground="White"
+                                      Width="50" TextAlignment="Right"/>
                         </StackPanel>
                     </Border>
 
@@ -169,6 +170,7 @@
                                Background="Red"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
+                               RenderTransformOrigin="0,0"
                                Name="ImageCanvas">
                             <Canvas.RenderTransform>
                                 <TransformGroup>
@@ -176,9 +178,10 @@
                                     <ScaleTransform ScaleX="{Binding ZoomLevel}" ScaleY="{Binding ZoomLevel}"/>
                                 </TransformGroup>
                             </Canvas.RenderTransform>
-
                             <!-- Image -->
                             <Image Source="{Binding DisplayImage}"
+                                  Width="{Binding ImageWidth}"
+                                  Height="{Binding ImageHeight}"
                                   RenderOptions.BitmapInterpolationMode="HighQuality"
                                   Canvas.Left="0" Canvas.Top="0"/>
 

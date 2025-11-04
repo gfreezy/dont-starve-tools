@@ -25,10 +25,7 @@ SOFTWARE.
 */
 #endregion License
 
-using System;
 using System.ComponentModel;
-using System.IO;
-using System.Linq;
 
 namespace KleiLib
 {
@@ -101,8 +98,6 @@ namespace KleiLib
                     throw new InvalidTEXFileException("The first 4 bytes do not match 'KTEX'.");
 
                 var header = reader.ReadUInt32();
-
-                Console.WriteLine(Convert.ToString(header, 2));
 
                 File.Header.Platform = header & 15;
                 File.Header.PixelFormat = (header >> 4) & 31;

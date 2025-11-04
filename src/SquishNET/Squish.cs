@@ -26,7 +26,6 @@ SOFTWARE.
 */
 #endregion License
 
-using System;
 using System.Runtime.InteropServices;
 using BCnEncoder.Encoder;
 using BCnEncoder.Decoder;

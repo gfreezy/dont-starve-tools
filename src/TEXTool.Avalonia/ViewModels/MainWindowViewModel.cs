@@ -269,8 +269,11 @@ public partial class MainWindowViewModel : ViewModelBase
         // So: panNew = (mousePos + panOld) * oldZoom / newZoom - mousePos
         if (Math.Abs(newZoom - oldZoom) > 0.001)
         {
-            PanX = (mouseX + PanX) * oldZoom / newZoom - mouseX;
-            PanY = (mouseY + PanY) * oldZoom / newZoom - mouseY;
+            var expectedPanX = (mouseX + PanX) * oldZoom / newZoom - mouseX;
+            var expectedPanY = (mouseY + PanY) * oldZoom / newZoom - mouseY;
+
+            PanX = expectedPanX;
+            PanY = expectedPanY;
         }
 
         ZoomLevel = newZoom;
@@ -284,10 +287,13 @@ public partial class MainWindowViewModel : ViewModelBase
         PanY += deltaY / ZoomLevel;
     }
 
-    // Reset pan to center
+    // Reset pan to center the image content in viewport
     public void ResetPan()
     {
-        PanX = 0;
-        PanY = 0;
+        // To center the image content, we need to offset by half the difference
+        // between the original size and the scaled size
+        // Formula: Pan = ImageSize / 2 × (1/Zoom - 1)
+        PanX = ImageWidth / 2.0 * (1.0 / ZoomLevel - 1.0);
+        PanY = ImageHeight / 2.0 * (1.0 / ZoomLevel - 1.0);
     }
 }

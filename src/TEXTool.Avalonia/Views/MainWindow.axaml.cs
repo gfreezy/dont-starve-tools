@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -30,15 +29,23 @@ public partial class MainWindow : Window
         // Get mouse position relative to Border (viewport coordinates)
         var mouseInBorder = e.GetPosition(border);
 
-        // Get Canvas position relative to Border
-        var canvasPos = ImageCanvas.TranslatePoint(new Point(0, 0), border);
-        canvasPos ??= new Point(0, 0);
-            Console.WriteLine("canvasPos is null");
-        
-        // Calculate mouse position in Canvas coordinate system (before transform)
+        // Calculate Canvas position in Border (it's centered)
+        var borderWidth = border.Bounds.Width;
+        var borderHeight = border.Bounds.Height;
+        var canvasWidth = viewModel.ImageWidth;
+        var canvasHeight = viewModel.ImageHeight;
+
+        // Canvas is centered in Border
+        var canvasPosX = (borderWidth - canvasWidth) / 2.0;
+        var canvasPosY = (borderHeight - canvasHeight) / 2.0;
+
+        // Apply inverse transform to get Canvas coordinate
+        // Forward: screen = canvasPos + (canvas + pan) * zoom
+        // Inverse: canvas = (screen - canvasPos) / zoom - pan
+        var currentZoom = viewModel.ZoomLevel;
         var mouseInCanvas = new Point(
-            mouseInBorder.X - canvasPos.Value.X,
-            mouseInBorder.Y - canvasPos.Value.Y
+            (mouseInBorder.X - canvasPosX) / currentZoom - viewModel.PanX,
+            (mouseInBorder.Y - canvasPosY) / currentZoom - viewModel.PanY
         );
 
         // Handle zoom with mouse wheel centered at cursor position
@@ -111,13 +118,20 @@ public partial class MainWindow : Window
             // Get mouse position relative to Border
             var mouseInBorder = e.GetPosition(border);
 
-            // Get Canvas position relative to Border
-            var canvasPos = ImageCanvas.TranslatePoint(new Point(0, 0), border) ?? new Point(0, 0);
+            // Calculate Canvas position in Border (it's centered)
+            var borderWidth = border.Bounds.Width;
+            var borderHeight = border.Bounds.Height;
+            var canvasWidth = viewModel.ImageWidth;
+            var canvasHeight = viewModel.ImageHeight;
 
-            // Calculate position in Canvas coordinate system (before transform)
+            var canvasPosX = (borderWidth - canvasWidth) / 2.0;
+            var canvasPosY = (borderHeight - canvasHeight) / 2.0;
+
+            // Apply inverse transform to get Canvas coordinate
+            var currentZoom = viewModel.ZoomLevel;
             var clickInCanvas = new Point(
-                mouseInBorder.X - canvasPos.X,
-                mouseInBorder.Y - canvasPos.Y
+                (mouseInBorder.X - canvasPosX) / currentZoom - viewModel.PanX,
+                (mouseInBorder.Y - canvasPosY) / currentZoom - viewModel.PanY
             );
 
             viewModel.SelectAtlasElementAtPosition(clickInCanvas.X, clickInCanvas.Y);
