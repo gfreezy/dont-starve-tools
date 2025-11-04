@@ -109,3 +109,4 @@ UpgradeLog*.XML
 .vs/*
 饥荒手柄Mod图标设计.tex
 .env
+.DS_Store
