@@ -88,9 +88,7 @@ mkdir -p publish/packages
 # Define runtimes to build
 RUNTIMES=(
     "linux-x64"
-    "linux-arm64"
     "win-x64"
-    "win-arm64"
 )
 
 echo "📋 Building for the following runtimes:"
