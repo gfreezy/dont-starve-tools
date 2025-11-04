@@ -1,0 +1,208 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:TEXTool.Avalonia.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
+        x:Class="TEXTool.Avalonia.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/TEXTool.ico"
+        Title="TEX Viewer - TEXTool"
+        Width="1200" Height="700">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <DockPanel>
+        <!-- Menu Bar -->
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Open TEX File..." Click="OpenFileMenuItem_Click" InputGesture="Ctrl+O"/>
+                <Separator/>
+                <MenuItem Header="_Export Full Image..."
+                         Command="{Binding ExportFullImageCommand}"
+                         Click="ExportFullImageMenuItem_Click"
+                         InputGesture="Ctrl+S"/>
+                <MenuItem Header="Export _Selected Element..."
+                         Command="{Binding ExportSelectedElementCommand}"
+                         Click="ExportSelectedElementMenuItem_Click"
+                         InputGesture="Ctrl+E"
+                         IsEnabled="{Binding SelectedAtlasElement, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                <Separator/>
+                <MenuItem Header="E_xit" Click="ExitMenuItem_Click" InputGesture="Alt+F4"/>
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" Click="AboutMenuItem_Click"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- Status Bar -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="Gray" BorderThickness="0,1,0,0" Padding="5">
+            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid ColumnDefinitions="220,*,250" Margin="5">
+
+            <!-- Left Panel - File Info -->
+            <Border Grid.Column="0" BorderBrush="Gray" BorderThickness="1" Padding="10" Margin="0,0,5,0">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="File Information" FontSize="16" FontWeight="Bold"/>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="File Name:" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding FileName}" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Platform:" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding Platform}"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Pixel Format:" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding PixelFormat}"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Texture Type:" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding TextureType}"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Size:" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding ImageSize}"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Mipmaps:" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding MipmapCount}"/>
+                    </StackPanel>
+
+                    <Separator Margin="0,10"/>
+
+                    <StackPanel Spacing="5">
+                        <Button Content="Open TEX File..."
+                               Click="OpenFileMenuItem_Click"
+                               HorizontalAlignment="Stretch"
+                               Padding="10,5"/>
+                        <Button Content="Export Full Image..."
+                               Command="{Binding ExportFullImageCommand}"
+                               Click="ExportFullImageMenuItem_Click"
+                               HorizontalAlignment="Stretch"
+                               Padding="10,5"
+                               IsEnabled="{Binding DisplayImage, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Center Panel - Image Display -->
+            <Border Grid.Column="1" BorderBrush="Gray" BorderThickness="1" Margin="0,0,5,0" Background="#1E1E1E">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Zoom Controls -->
+                    <Border Grid.Row="0" Background="#2D2D2D" Padding="5" Margin="5">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Content="+" Command="{Binding ZoomInCommand}"
+                                   Width="30" Height="30" Margin="2" ToolTip.Tip="Zoom In (Scroll Up)"/>
+                            <Button Content="-" Command="{Binding ZoomOutCommand}"
+                                   Width="30" Height="30" Margin="2" ToolTip.Tip="Zoom Out (Scroll Down)"/>
+                            <Button Content="1:1" Command="{Binding ZoomResetCommand}"
+                                   Width="40" Height="30" Margin="2" ToolTip.Tip="Reset Zoom"/>
+                            <Button Content="Fit" Command="{Binding ZoomToFitCommand}"
+                                   Width="40" Height="30" Margin="2" ToolTip.Tip="Fit to Window"/>
+                            <TextBlock Text="{Binding ZoomLevel, StringFormat='{}{0:P0}'}"
+                                      VerticalAlignment="Center" Margin="10,0,0,0" Foreground="White"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Image Display with Zoom -->
+                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
+                                 VerticalScrollBarVisibility="Auto"
+                                 PointerWheelChanged="ScrollViewer_PointerWheelChanged">
+                        <Grid Width="{Binding ImageWidth}" Height="{Binding ImageHeight}"
+                             RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <ScaleTransform ScaleX="{Binding ZoomLevel}" ScaleY="{Binding ZoomLevel}"/>
+                            </Grid.RenderTransform>
+
+                            <!-- Image -->
+                            <Image Source="{Binding DisplayImage}"
+                                  RenderOptions.BitmapInterpolationMode="HighQuality"
+                                  PointerPressed="Image_PointerPressed"/>
+
+                            <!-- Highlight overlay canvas -->
+                            <Canvas IsVisible="{Binding HighlightVisible}">
+                                <Rectangle Canvas.Left="{Binding HighlightX}"
+                                          Canvas.Top="{Binding HighlightY}"
+                                          Width="{Binding HighlightWidth}"
+                                          Height="{Binding HighlightHeight}"
+                                          Stroke="Yellow"
+                                          StrokeThickness="2"
+                                          Fill="Transparent"/>
+                            </Canvas>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- Right Panel - Atlas Elements -->
+            <Border Grid.Column="2" BorderBrush="Gray" BorderThickness="1" Padding="10">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <StackPanel Grid.Row="0" Spacing="5" Margin="0,0,0,10">
+                        <TextBlock Text="Texture Atlas" FontSize="16" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding AtlasElements.Count, StringFormat='Elements: {0}'}"
+                                  Foreground="Gray"
+                                  IsVisible="{Binding HasAtlas}"/>
+                        <TextBlock Text="No atlas data found"
+                                  Foreground="Gray"
+                                  IsVisible="{Binding !HasAtlas}"/>
+                    </StackPanel>
+
+                    <ListBox Grid.Row="1"
+                            ItemsSource="{Binding AtlasElements}"
+                            SelectedItem="{Binding SelectedAtlasElement}"
+                            IsVisible="{Binding HasAtlas}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
+                                    <TextBlock Foreground="Gray" FontSize="11">
+                                        <TextBlock.Text>
+                                            <MultiBinding StringFormat="Size: {0}x{1}">
+                                                <Binding Path="Width"/>
+                                                <Binding Path="Height"/>
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                    <TextBlock Foreground="Gray" FontSize="11">
+                                        <TextBlock.Text>
+                                            <MultiBinding StringFormat="Pos: ({0}, {1})">
+                                                <Binding Path="X"/>
+                                                <Binding Path="Y"/>
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <StackPanel Grid.Row="2" Spacing="5" Margin="0,10,0,0" IsVisible="{Binding HasAtlas}">
+                        <Button Content="Export Selected Element"
+                               Command="{Binding ExportSelectedElementCommand}"
+                               Click="ExportSelectedElementMenuItem_Click"
+                               HorizontalAlignment="Stretch"
+                               Padding="10,5"
+                               IsEnabled="{Binding SelectedAtlasElement, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>
