@@ -106,6 +106,7 @@ echo ""
 print_message "$BLUE" "🍎 Building macOS packages..."
 if [ -f "./build-macos-apps.sh" ]; then
     ./build-macos-apps.sh
+    ./codesign-macos-apps.sh
 
     # Create archives for macOS apps
     cd publish/apps
