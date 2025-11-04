@@ -1,4 +1,5 @@
-using System.Linq;
+using System;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -11,32 +12,143 @@ namespace TEXTool.Avalonia.Views;
 
 public partial class MainWindow : Window
 {
+    private bool _isDragging;
+    private Point _dragStartPoint;
+    private Point _lastDragPoint;
+    private const double DragThreshold = 5.0; // pixels
+
     public MainWindow()
     {
         InitializeComponent();
     }
 
-    private void Image_PointerPressed(object? sender, PointerPressedEventArgs e)
+    private void Border_PointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
-        if (sender is not Image image || DataContext is not MainWindowViewModel viewModel)
+        if (sender is not Border border || DataContext is not MainWindowViewModel viewModel)
             return;
 
-        // Get the position relative to the image
-        var position = e.GetPosition(image);
+        // Get mouse position relative to Border (viewport coordinates)
+        var mouseInBorder = e.GetPosition(border);
 
-        // The position is already in image coordinates because the Grid
-        // has Width/Height set to match the image dimensions
-        viewModel.SelectAtlasElementAtPosition(position.X, position.Y);
+        // Get Canvas position relative to Border
+        var canvasPos = ImageCanvas.TranslatePoint(new Point(0, 0), border);
+        canvasPos ??= new Point(0, 0);
+            Console.WriteLine("canvasPos is null");
+        
+        // Calculate mouse position in Canvas coordinate system (before transform)
+        var mouseInCanvas = new Point(
+            mouseInBorder.X - canvasPos.Value.X,
+            mouseInBorder.Y - canvasPos.Value.Y
+        );
+
+        // Handle zoom with mouse wheel centered at cursor position
+        viewModel.HandleMouseWheel(e.Delta.Y, mouseInCanvas.X, mouseInCanvas.Y);
+        e.Handled = true; // Prevent default scrolling
     }
 
-    private void ScrollViewer_PointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    private void Border_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (DataContext is not MainWindowViewModel viewModel)
+        if (sender is not Border border)
             return;
 
-        // Handle zoom with mouse wheel
-        viewModel.HandleMouseWheel(e.Delta.Y);
-        e.Handled = true; // Prevent default scrolling
+        var properties = e.GetCurrentPoint(border).Properties;
+
+        // Left click - record start point for potential drag
+        if (properties.IsLeftButtonPressed)
+        {
+            _dragStartPoint = e.GetPosition(border);
+            _lastDragPoint = _dragStartPoint;
+            e.Pointer.Capture(border);
+            e.Handled = true;
+        }
+    }
+
+    private void Border_PointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (sender is not Border border || DataContext is not MainWindowViewModel viewModel)
+            return;
+
+        // Only process if left button is pressed
+        if (!e.GetCurrentPoint(border).Properties.IsLeftButtonPressed)
+            return;
+
+        var currentPoint = e.GetPosition(border);
+
+        // Check if we should start dragging
+        if (!_isDragging)
+        {
+            var distance = Math.Sqrt(
+                Math.Pow(currentPoint.X - _dragStartPoint.X, 2) +
+                Math.Pow(currentPoint.Y - _dragStartPoint.Y, 2));
+
+            if (distance > DragThreshold)
+            {
+                _isDragging = true;
+                _lastDragPoint = currentPoint;
+            }
+            return; // Don't pan until drag starts
+        }
+
+        // Update pan
+        var delta = currentPoint - _lastDragPoint;
+        if (delta.X != 0 || delta.Y != 0)
+        {
+            viewModel.HandlePan(delta.X, delta.Y);
+            _lastDragPoint = currentPoint;
+        }
+
+        e.Handled = true;
+    }
+
+    private void Border_PointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (sender is not Border border || DataContext is not MainWindowViewModel viewModel)
+            return;
+
+        // If we didn't drag (just clicked), handle element selection
+        if (!_isDragging)
+        {
+            // Get mouse position relative to Border
+            var mouseInBorder = e.GetPosition(border);
+
+            // Get Canvas position relative to Border
+            var canvasPos = ImageCanvas.TranslatePoint(new Point(0, 0), border) ?? new Point(0, 0);
+
+            // Calculate position in Canvas coordinate system (before transform)
+            var clickInCanvas = new Point(
+                mouseInBorder.X - canvasPos.X,
+                mouseInBorder.Y - canvasPos.Y
+            );
+
+            viewModel.SelectAtlasElementAtPosition(clickInCanvas.X, clickInCanvas.Y);
+        }
+
+        _isDragging = false;
+        e.Pointer.Capture(null);
+        e.Handled = true;
+    }
+
+    private void ZoomToFitButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || viewModel.ImageWidth == 0 || viewModel.ImageHeight == 0)
+            return;
+
+        // Get the actual size of the border (viewport)
+        var viewportWidth = ImageBorder.Bounds.Width;
+        var viewportHeight = ImageBorder.Bounds.Height;
+
+        if (viewportWidth <= 0 || viewportHeight <= 0)
+            return;
+
+        // Calculate zoom to fit while maintaining aspect ratio
+        var scaleX = viewportWidth / viewModel.ImageWidth;
+        var scaleY = viewportHeight / viewModel.ImageHeight;
+        var fitZoom = Math.Min(scaleX, scaleY);
+
+        // Apply some padding (95% of available space)
+        fitZoom *= 0.95;
+
+        viewModel.ZoomToFit(fitZoom);
     }
 
     private async void OpenFileMenuItem_Click(object? sender, RoutedEventArgs e)

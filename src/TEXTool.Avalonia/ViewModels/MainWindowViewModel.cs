@@ -81,6 +81,13 @@ public partial class MainWindowViewModel : ViewModelBase
     private const double MaxZoom = 10.0;
     private const double ZoomStep = 0.1;
 
+    // Pan properties for image dragging
+    [ObservableProperty]
+    private double _panX = 0;
+
+    [ObservableProperty]
+    private double _panY = 0;
+
     public void LoadFile(string filePath)
     {
         try
@@ -236,23 +243,51 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ZoomReset()
     {
         ZoomLevel = 1.0;
+        ResetPan();
     }
 
-    [RelayCommand]
-    private void ZoomToFit()
+    public void ZoomToFit(double zoom)
     {
-        ZoomLevel = 1.0;
+        ZoomLevel = zoom;
+        ResetPan();
     }
 
-    public void HandleMouseWheel(double delta)
+    public void HandleMouseWheel(double delta, double mouseX, double mouseY)
     {
-        if (delta > 0)
+        // Use multiplicative zoom for smoother feel
+        const double zoomFactor = 1.1; // 10% change per step
+
+        var oldZoom = ZoomLevel;
+
+        // Calculate new zoom using delta directly for smoother scaling
+        var zoomChange = Math.Pow(zoomFactor, delta);
+        var newZoom = Math.Clamp(oldZoom * zoomChange, MinZoom, MaxZoom);
+
+        // Adjust pan to keep the point under the cursor stationary
+        // Transform: screen = (canvas + pan) * zoom
+        // We want: (mousePos + panOld) * oldZoom = (mousePos + panNew) * newZoom
+        // So: panNew = (mousePos + panOld) * oldZoom / newZoom - mousePos
+        if (Math.Abs(newZoom - oldZoom) > 0.001)
         {
-            ZoomLevel = Math.Min(ZoomLevel + ZoomStep, MaxZoom);
+            PanX = (mouseX + PanX) * oldZoom / newZoom - mouseX;
+            PanY = (mouseY + PanY) * oldZoom / newZoom - mouseY;
         }
-        else if (delta < 0)
-        {
-            ZoomLevel = Math.Max(ZoomLevel - ZoomStep, MinZoom);
-        }
+
+        ZoomLevel = newZoom;
+    }
+
+    // Handle pan gesture / mouse drag
+    public void HandlePan(double deltaX, double deltaY)
+    {
+        // Adjust delta by zoom level so pan follows mouse exactly
+        PanX += deltaX / ZoomLevel;
+        PanY += deltaY / ZoomLevel;
+    }
+
+    // Reset pan to center
+    public void ResetPan()
+    {
+        PanX = 0;
+        PanY = 0;
     }
 }

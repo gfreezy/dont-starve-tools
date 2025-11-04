@@ -109,45 +109,90 @@
                     <Border Grid.Row="0" Background="#2D2D2D" Padding="5" Margin="5">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <Button Content="+" Command="{Binding ZoomInCommand}"
-                                   Width="30" Height="30" Margin="2" ToolTip.Tip="Zoom In (Scroll Up)"/>
+                                   Width="30" Height="30" Margin="2" ToolTip.Tip="Zoom In (Scroll Up)">
+                                <Button.Styles>
+                                    <Style Selector="Button">
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                    <Style Selector="Button:pointerover /template/ ContentPresenter">
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                </Button.Styles>
+                            </Button>
                             <Button Content="-" Command="{Binding ZoomOutCommand}"
-                                   Width="30" Height="30" Margin="2" ToolTip.Tip="Zoom Out (Scroll Down)"/>
+                                   Width="30" Height="30" Margin="2" ToolTip.Tip="Zoom Out (Scroll Down)">
+                                <Button.Styles>
+                                    <Style Selector="Button">
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                    <Style Selector="Button:pointerover /template/ ContentPresenter">
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                </Button.Styles>
+                            </Button>
                             <Button Content="1:1" Command="{Binding ZoomResetCommand}"
-                                   Width="40" Height="30" Margin="2" ToolTip.Tip="Reset Zoom"/>
-                            <Button Content="Fit" Command="{Binding ZoomToFitCommand}"
-                                   Width="40" Height="30" Margin="2" ToolTip.Tip="Fit to Window"/>
+                                   Width="40" Height="30" Margin="2" ToolTip.Tip="Reset Zoom">
+                                <Button.Styles>
+                                    <Style Selector="Button">
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                    <Style Selector="Button:pointerover /template/ ContentPresenter">
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                </Button.Styles>
+                            </Button>
+                            <Button Content="Fit" Click="ZoomToFitButton_Click"
+                                   Width="40" Height="30" Margin="2" ToolTip.Tip="Fit to Window">
+                                <Button.Styles>
+                                    <Style Selector="Button">
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                    <Style Selector="Button:pointerover /template/ ContentPresenter">
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                </Button.Styles>
+                            </Button>
                             <TextBlock Text="{Binding ZoomLevel, StringFormat='{}{0:P0}'}"
                                       VerticalAlignment="Center" Margin="10,0,0,0" Foreground="White"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Image Display with Zoom -->
-                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
-                                 VerticalScrollBarVisibility="Auto"
-                                 PointerWheelChanged="ScrollViewer_PointerWheelChanged">
-                        <Grid Width="{Binding ImageWidth}" Height="{Binding ImageHeight}"
-                             RenderTransformOrigin="0.5,0.5">
-                            <Grid.RenderTransform>
-                                <ScaleTransform ScaleX="{Binding ZoomLevel}" ScaleY="{Binding ZoomLevel}"/>
-                            </Grid.RenderTransform>
+                    <!-- Image Display with Zoom and Pan -->
+                    <Border Grid.Row="1" ClipToBounds="True" Name="ImageBorder"
+                           HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                           Background="Transparent"
+                           PointerPressed="Border_PointerPressed"
+                           PointerMoved="Border_PointerMoved"
+                           PointerReleased="Border_PointerReleased"
+                           PointerWheelChanged="Border_PointerWheelChanged">
+                        <Canvas Width="{Binding ImageWidth}" Height="{Binding ImageHeight}"
+                               Background="Red"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Name="ImageCanvas">
+                            <Canvas.RenderTransform>
+                                <TransformGroup>
+                                    <TranslateTransform X="{Binding PanX}" Y="{Binding PanY}"/>
+                                    <ScaleTransform ScaleX="{Binding ZoomLevel}" ScaleY="{Binding ZoomLevel}"/>
+                                </TransformGroup>
+                            </Canvas.RenderTransform>
 
                             <!-- Image -->
                             <Image Source="{Binding DisplayImage}"
                                   RenderOptions.BitmapInterpolationMode="HighQuality"
-                                  PointerPressed="Image_PointerPressed"/>
+                                  Canvas.Left="0" Canvas.Top="0"/>
 
-                            <!-- Highlight overlay canvas -->
-                            <Canvas IsVisible="{Binding HighlightVisible}">
-                                <Rectangle Canvas.Left="{Binding HighlightX}"
-                                          Canvas.Top="{Binding HighlightY}"
-                                          Width="{Binding HighlightWidth}"
-                                          Height="{Binding HighlightHeight}"
-                                          Stroke="Yellow"
-                                          StrokeThickness="2"
-                                          Fill="Transparent"/>
-                            </Canvas>
-                        </Grid>
-                    </ScrollViewer>
+                            <!-- Highlight overlay -->
+                            <Rectangle Canvas.Left="{Binding HighlightX}"
+                                      Canvas.Top="{Binding HighlightY}"
+                                      Width="{Binding HighlightWidth}"
+                                      Height="{Binding HighlightHeight}"
+                                      Stroke="Yellow"
+                                      StrokeThickness="2"
+                                      Fill="Transparent"
+                                      IsVisible="{Binding HighlightVisible}"/>
+                        </Canvas>
+                    </Border>
                 </Grid>
             </Border>
 
