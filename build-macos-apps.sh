@@ -120,7 +120,8 @@ build_app_bundle() {
         -r osx-arm64 \
         --configuration Release \
         -p:UseAppHost=true \
-        -p:PublishSingleFile=false \
+        -p:PublishSingleFile=true \
+        -p:SelfContained=true \
         -o "publish/$app_name-temp"
 
     # 2. Create .app bundle structure

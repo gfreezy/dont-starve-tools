@@ -41,7 +41,7 @@ Native Apple Silicon apps with:
 
 ### Download Pre-built Apps
 
-* [Download the latest release](https://github.com/oblivioncth/dont-starve-tools/releases)
+* [Download the latest release](https://github.com/gfreezy/dont-starve-tools/releases)
 
 ### Build from Source
 
