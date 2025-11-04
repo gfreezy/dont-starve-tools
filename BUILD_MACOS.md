@@ -65,6 +65,33 @@ chmod +x "publish/apps/TEX Viewer.app/Contents/MacOS/TEXTool.Avalonia"
 
 查看 `build-macos-apps.sh` 中的 `create_info_plist` 函数作为模板。
 
+## ⚙️ 环境变量配置（可选）
+
+如果需要代码签名和公证，可以使用 `.env` 文件配置环境变量：
+
+```bash
+# 1. 复制示例文件
+cp .env.example .env
+
+# 2. 编辑 .env 文件，填入你的实际信息
+# 使用你喜欢的编辑器打开 .env
+
+# 3. 加载环境变量
+source .env
+# 或
+export $(cat .env | xargs)
+```
+
+`.env.example` 文件包含所有可配置的变量：
+- `CODESIGN_IDENTITY` - 签名证书标识
+- `APPLE_ID` - Apple ID 邮箱
+- `APPLE_ID_PASSWORD` - 应用专用密码
+- `TEAM_ID` - 开发者团队 ID
+- `RUNTIME_IDENTIFIER` - 目标架构
+- `BUILD_CONFIGURATION` - 构建配置
+
+**重要：** `.env` 文件已添加到 `.gitignore`，不会被提交到版本控制。
+
 ## 🔐 代码签名（可选但推荐）
 
 如果你有 Apple Developer 账号，可以对应用进行签名以避免安全警告。

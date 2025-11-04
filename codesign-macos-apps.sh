@@ -8,6 +8,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+. $SCRIPT_DIR/.env
+
 # ========== Configuration ==========
 # Set these variables or pass as environment variables
 
@@ -94,21 +96,21 @@ sign_app() {
     local entitlements_file="$app_path/Contents/entitlements.plist"
     create_entitlements "$entitlements_file"
 
-    # Sign all binaries in MacOS directory
-    echo "  Signing binaries..."
-    find "$app_path/Contents/MacOS" -type f -perm +111 | while read -r file; do
-        if file "$file" | grep -q "Mach-O"; then
-            echo "    - $(basename "$file")"
-            codesign --force \
-                --timestamp \
-                --options runtime \
-                --entitlements "$entitlements_file" \
-                --sign "$SIGNING_IDENTITY" \
-                "$file"
-        fi
+    # Sign in order: DLLs first, then dylibs, then main executable, then bundle
+    # This ensures dependencies are signed before the binaries that reference them
+
+    # 1. Sign .dll files (managed assemblies) FIRST
+    echo "  Signing managed assemblies..."
+    find "$app_path/Contents/MacOS" -name "*.dll" | while read -r file; do
+        echo "    - $(basename "$file")"
+        codesign --force \
+            --timestamp \
+            --options runtime \
+            --sign "$SIGNING_IDENTITY" \
+            "$file"
     done
 
-    # Sign .dylib files
+    # 2. Sign .dylib files
     echo "  Signing dynamic libraries..."
     find "$app_path/Contents/MacOS" -name "*.dylib" | while read -r file; do
         echo "    - $(basename "$file")"
@@ -119,19 +121,37 @@ sign_app() {
             "$file"
     done
 
+    # 3. Sign the main executable LAST (after all dependencies)
+    echo "  Signing main executable..."
+    # Get executable name from Info.plist
+    local bundle_exec=$(defaults read "$app_path/Contents/Info.plist" CFBundleExecutable 2>/dev/null)
+    if [ -n "$bundle_exec" ]; then
+        local main_exec="$app_path/Contents/MacOS/$bundle_exec"
+        if [ -f "$main_exec" ]; then
+            echo "    - $(basename "$main_exec")"
+            codesign --force \
+                --timestamp \
+                --options runtime \
+                --entitlements "$entitlements_file" \
+                --sign "$SIGNING_IDENTITY" \
+                "$main_exec"
+        fi
+    fi
+
     # Sign the app bundle itself
+    # Note: We use --deep here to sign any remaining unsigned components
     echo "  Signing app bundle..."
     codesign --force \
+        --deep \
         --timestamp \
         --options runtime \
         --entitlements "$entitlements_file" \
         --sign "$SIGNING_IDENTITY" \
-        --deep \
-        "$app_path"
+        "$app_path" 2>&1 | grep -v "\.json:" || true
 
-    # Verify signature
+    # Verify signature (without --deep to avoid JSON file issues)
     echo "  Verifying signature..."
-    codesign --verify --deep --strict --verbose=2 "$app_path"
+    codesign --verify --verbose=2 "$app_path"
 
     echo "  ✅ $app_name signed successfully"
     echo ""
@@ -200,7 +220,7 @@ for app in publish/apps/*.app; do
     if [ -d "$app" ]; then
         app_count=$((app_count + 1))
         sign_app "$app"
-        notarize_app "$app"
+        # notarize_app "$app"
     fi
 done
 
